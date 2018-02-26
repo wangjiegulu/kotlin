@@ -32,7 +32,6 @@ import org.jetbrains.kotlin.utils.PathUtil
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import org.jetbrains.kotlin.utils.addToStdlib.flattenTo
 import java.io.File
-import java.net.URL
 import java.net.URLClassLoader
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -154,7 +153,7 @@ fun loadDefinitionsFromTemplates(
     val classpath = templateClasspath + additionalResolverClasspath
     LOG.info("[kts] loading script definitions $templateClassNames using cp: ${classpath.joinToString(File.pathSeparator)}")
     val baseLoader = ScriptDefinitionContributor::class.java.classLoader
-    val loader = if (classpath.isEmpty()) baseLoader else ScriptingURLClassLoader(classpath.map { it.toURI().toURL() }.toTypedArray(), baseLoader)
+    val loader = if (classpath.isEmpty()) baseLoader else URLClassLoader(classpath.map { it.toURI().toURL() }.toTypedArray(), baseLoader)
 
     templateClassNames.mapNotNull {
         val template = loader.loadClass(it).kotlin
@@ -232,21 +231,5 @@ class BundledKotlinScriptDependenciesResolver(private val project: Project) : De
     private fun getScriptSDK(project: Project): String? {
         val jdk = ProjectJdkTable.getInstance().allJdks.firstOrNull { sdk -> sdk.sdkType is JavaSdk } ?: PathUtilEx.getAnyJdk(project)
         return jdk?.homePath
-    }
-}
-
-
-private const val LEGACY_SCRIPTING_API_PACKAGE = "org.jetbrains.kotlin.script."
-
-internal class ScriptingURLClassLoader(urls: Array<URL>, val baseClassLoader: ClassLoader) : URLClassLoader(urls, null) {
-
-    public override fun findClass(name: String): Class<*> {
-        return if (name.startsWith("kotlin.")
-            || (name.startsWith(LEGACY_SCRIPTING_API_PACKAGE) && !name.removePrefix(LEGACY_SCRIPTING_API_PACKAGE).contains('.'))
-        ) {
-            baseClassLoader.loadClass(name)
-        } else {
-            super.findClass(name)
-        }
     }
 }
