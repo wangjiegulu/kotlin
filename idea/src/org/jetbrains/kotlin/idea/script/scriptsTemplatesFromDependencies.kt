@@ -11,6 +11,7 @@ import com.intellij.openapi.roots.ModuleRootEvent
 import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.roots.OrderEnumerator
 import com.intellij.openapi.vfs.JarFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionContributor
 import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionsManager
 import org.jetbrains.kotlin.idea.core.script.loadDefinitionsFromTemplates
@@ -54,21 +55,40 @@ class ScriptTemplatesFromDependenciesProvider(private val project: Project) : Sc
         val templates = LinkedHashSet<String>()
         val classpath = LinkedHashSet<File>()
         val templatesPath = "META-INF/kotlin/script/templates/"
-        project.allModules().forEach { module ->
-            var templatesFound = false
-            OrderEnumerator.orderEntries(module).classesRoots.forEach { vfile ->
+        val processedRoots = hashSetOf<VirtualFile>()
+
+        fun addTemplatesFromRoot(vfile: VirtualFile): Boolean {
+            var newTemplatesFound = false
+            if (!processedRoots.contains(vfile)) {
+                processedRoots.add(vfile)
                 val root = JarFileSystem.getInstance().getJarRootForLocalFile(vfile) ?: vfile
-                val dir = root.findFileByRelativePath(templatesPath)
-                if (dir?.isDirectory == true) {
-                    dir.children.forEach {
-                        if (it.isValid && !it.isDirectory) {
-                            templates.add(it.name)
-                            templatesFound = true
-                        }
+                root.findFileByRelativePath(templatesPath)?.takeIf { it.isDirectory }?.children?.forEach {
+                    if (it.isValid && !it.isDirectory && templates.add(it.name)) {
+                        newTemplatesFound = true
                     }
                 }
             }
-            if (templatesFound) {
+            return newTemplatesFound
+        }
+
+        project.allModules().forEach { module ->
+            var newTemplatesFound = false
+            // processing source roots from the same project first since the resources are copied to the classes roots only on compilation
+            OrderEnumerator.orderEntries(module).sourceRoots.forEach {
+                if (addTemplatesFromRoot(it)) {
+                    newTemplatesFound = true
+                }
+            }
+            // assuming that all libraries are placed into classes roots
+            OrderEnumerator.orderEntries(module).classesRoots.forEach {
+                if (addTemplatesFromRoot(it)) {
+                    newTemplatesFound = true
+                }
+            }
+            if (newTemplatesFound) {
+                // minimizing the classpath needed to use the template by taking cp only from modules with new templates found
+                // on the other hand the approach may fail if some module contains a template without proper classpath, while
+                // the other has properly configured classpath, so assuming that the dependencies are set correctly everywhere
                 classpath.addAll(OrderEnumerator.orderEntries(module).classesRoots.mapNotNull {
                     it.canonicalPath?.let { File(it.removeSuffix("!/")) }
                 })
