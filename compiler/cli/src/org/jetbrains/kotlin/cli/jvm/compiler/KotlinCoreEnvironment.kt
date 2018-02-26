@@ -87,6 +87,7 @@ import org.jetbrains.kotlin.codegen.extensions.ClassBuilderInterceptorExtension
 import org.jetbrains.kotlin.codegen.extensions.ExpressionCodegenExtension
 import org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
 import org.jetbrains.kotlin.config.*
+import org.jetbrains.kotlin.extensions.CompilerConfigurationExtension
 import org.jetbrains.kotlin.extensions.DeclarationAttributeAltererExtension
 import org.jetbrains.kotlin.extensions.PreprocessedVirtualFileFactoryExtension
 import org.jetbrains.kotlin.extensions.StorageComponentContainerContributor
@@ -174,6 +175,7 @@ class KotlinCoreEnvironment private constructor(
         DeclarationAttributeAltererExtension.registerExtensionPoint(project)
         PreprocessedVirtualFileFactoryExtension.registerExtensionPoint(project)
         JsSyntheticTranslateExtension.registerExtensionPoint(project)
+        CompilerConfigurationExtension.registerExtensionPoint(project)
 
         for (registrar in configuration.getList(ComponentRegistrar.PLUGIN_COMPONENT_REGISTRARS)) {
             try {
@@ -190,6 +192,10 @@ class KotlinCoreEnvironment private constructor(
 
         val messageCollector = configuration.get(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
         registerProjectServices(projectEnvironment, messageCollector)
+
+        CompilerConfigurationExtension.getInstances(project).forEach {
+            it.updateConfiguration(configuration)
+        }
 
         sourceFiles += CompileEnvironmentUtil.getKtFiles(project, getSourceRootsCheckingForDuplicates(), this.configuration, {
             message ->
