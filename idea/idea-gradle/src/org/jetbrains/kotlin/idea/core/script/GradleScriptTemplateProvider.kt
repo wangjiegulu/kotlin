@@ -84,7 +84,7 @@ class GradleScriptDefinitionsContributor(private val project: Project): ScriptDe
     // NOTE: control flow here depends on suppressing exceptions from loadGradleTemplates calls
     // TODO: possibly combine exceptions from every loadGradleTemplates call, be mindful of KT-19276
     private fun loadDefinitions(): List<KotlinScriptDefinition> {
-        val kotlinDslDependencySelector = Regex("^gradle-(?:kotlin-dsl|core).*\\.jar\$")
+        val kotlinDslDependencySelector = Regex("^gradle-(?:kotlin-dsl|core|api|tooling-api).*\\.jar\$")
         val kotlinDslAdditionalResolverCp = ::kotlinStdlibAndCompiler
 
         failedToLoad.set(false)
@@ -117,7 +117,7 @@ class GradleScriptDefinitionsContributor(private val project: Project): ScriptDe
 
         return loadGradleTemplates(
             templateClass = "org.gradle.script.lang.kotlin.KotlinBuildScript",
-            dependencySelector = Regex("^gradle-(?:script-kotlin|core).*\\.jar\$"),
+            dependencySelector = Regex("^gradle-(?:script-kotlin|core|api|tooling-api).*\\.jar\$"),
             additionalResolverClasspath = { emptyList() }
         )
     }
